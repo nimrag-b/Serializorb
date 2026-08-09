@@ -1,0 +1,11 @@
+{
+"v": 2432.640000,
+"f": 2429346298522,
+"boolean": 1,
+"innertest": {
+"myint": 235,
+"char_name": "Hello World!",
+"str_name": "Hello String"
+},
+"inheritedvalue": 43
+}
