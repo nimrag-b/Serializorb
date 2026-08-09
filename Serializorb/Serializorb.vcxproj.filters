@@ -18,6 +18,9 @@
     <ClCompile Include="Serializorb.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="serializorb_json.cpp">
+      <Filter>Header Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="serializorb.h">

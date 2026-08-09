@@ -79,3 +79,39 @@ int main()
 //   4. Use the Error List window to view errors
 //   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
 //   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
+
+void serializer::delete_map(deserialized_map* map) {
+    for (auto& m : map->deep) {
+        delete_map(m.second);
+    }
+    delete map;
+}
+
+void serializer::enter_scope(std::string& name) {
+    if (state == SERIALIZE_WRITING) {
+        enter_scope_impl(name);
+        scopes.push({ name, 0 });
+    }
+    else {
+        cur = cur->deep[name];
+    }
+
+}
+
+void serializer::exit_scope() {
+    if (state == SERIALIZE_WRITING) {
+        exit_scope_impl();
+        scopes.pop();
+    }
+    else {
+        cur = cur->parent;
+    }
+
+}
+
+void serializer::serialize_deep(serializable* object, std::string& name) {
+
+    enter_scope(name);
+    object->serialize(this);
+    exit_scope();
+}

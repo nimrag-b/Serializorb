@@ -124,6 +124,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Serializorb.cpp" />
+    <ClCompile Include="serializorb_json.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="serializorb.h" />
