@@ -2,72 +2,16 @@
 
 void print_map(deserialized_map* map) {
     for (auto& i : map->map) {
-        std::cout << i.second->key << " : " << i.second->value << std::endl;
+        std::cout << i.second->key << " : " << i.second->str_value << std::endl;
     }
 
     for (auto& i : map->deep) {
         std::cout << i.first << " : {" << std::endl;
-        print_map(i.second);
+        print_map(i.second.get());
         std::cout << "}" << std::endl;
     }
 }
 
-void serializer_json::start_read() {
-	serializer::start_read();
-
-    file.open(file_name, std::fstream::in);
-
-    std::stringstream ss;
-    std::string buf;
-    while (std::getline(file, buf)) {
-        ss << buf;
-    }
-    buf = ss.str();
-    buf.erase(std::remove_if(buf.begin(), buf.end(), std::isspace), buf.end());
-
-    file.close();
-
-    ss = std::stringstream(buf);
-
-    std::stack<deserialized_map*> map_stack;
-
-    map = new deserialized_map;
-    cur = map;
-
-    map_stack.push(map);
-    char ch = ss.get(); //should be {
-    while (!map_stack.empty()) {
-        char peek = ss.peek();
-        if (peek == '}') {
-            ss.get();
-            map_stack.pop();
-            continue;
-        }
-
-        deserialize(map_stack, ss);
-    }
-
-    //print_map(map);
-}
-
-void serializer_json::start_write() {
-	serializer::start_write();
-    file.open(file_name, std::fstream::out);
-    scopes.push({ "",0 });
-    file << "{";
-}
-
-void serializer_json::stop() {
-    if (state == SERIALIZE_WRITING) {
-        file << "\n}";
-        file.close();
-    }
-    else {
-        delete_map(map);
-        map = nullptr;
-    }
-
-}
 
 void serializer_json::enter_scope_impl(std::string& name) {
 	if (scopes.top().second != 0) {
@@ -87,34 +31,55 @@ void serializer_json::serialize_impl(serialized_object* serialized) {
 	}
 
 	file << "\n\"" << serialized->key << "\": ";
+
+	if (serialized->flags & SERIALIZED_ARRAY_TYPE) {
+		file << "[ ";
+		for (size_t i = 0; i < serialized->size; i++)
+		{
+			if (i != 0) {
+				file << ", ";
+			}
+			auto ptr = serialized->str_array();
+			file << serialized->str_array();
+			ptr += strlen(ptr) + 1;
+		}
+		file << " ]";
+	}
 	//dont need to wrap ints in quotes
-	if (serialized->flags & SERIALIZED_INT_TYPE || serialized->flags & SERIALIZED_FLOAT_TYPE) {
-		file << serialized->value;
+	else if (serialized->flags & SERIALIZED_INT_TYPE || serialized->flags & SERIALIZED_FLOAT_TYPE) {
+		file << serialized->str_value;
 	}
 	else {
-		file << "\"" << serialized->value << "\"";
+		file << "\"" << serialized->str_value << "\"";
 	}
 }
 
 
 
-void serializer_json::deserialize(std::stack<deserialized_map*>& map_stack, std::stringstream& ss) {
+deserialized_map* serializer_json::deserialize_impl(deserialized_map* map, std::stringstream& ss) {
 	std::string name;
 	std::string value;
 
 	std::string ln;
+
+	char ch = ss.peek();
+	if (ch == '}') { //close object
+		ss.get(); //eat
+		return map->exit();
+	}
+
 	std::getline(ss, ln, '"'); //get up to start of next token
 	std::getline(ss, name, '"'); //get name
 
-	char ch = ss.get(); // should be :
+	ch = ss.get(); // should be :
 
 	ch = ss.get();
 	if (ch == '{') { //new object
-		deserialized_map* new_map = new deserialized_map;
-		new_map->parent = map_stack.top();
-		map_stack.top()->add(name, new_map);
-		map_stack.push(new_map);
-		return;
+		return map->enter(name);
+	}
+	else if (ch == '[') { //array
+		std::getline(ss, value, ']'); //get value
+		throw new std::exception("NOT IMPLEMENTED");
 	}
 	else if (ch == '\"') {
 		std::getline(ss, value, '"'); //get value
@@ -144,8 +109,6 @@ void serializer_json::deserialize(std::stack<deserialized_map*>& map_stack, std:
 		value = ss1.str();
 	}
 
-	serialized_object* object = new serialized_object;
-	object->key = name;
-	object->value = value;
-	map_stack.top()->add(object);
+	map->add(name, value);
+	return map;
 }

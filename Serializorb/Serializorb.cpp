@@ -61,9 +61,9 @@ int main()
     //t.innertest.str_name = "Hello String";
 
 
-    serializer_json s("test.json");
+    serializer_json s;
 
-    s.start_read();
+    s.start_read("test.json");
     t.serialize(&s);
     s.stop();
 
@@ -80,26 +80,20 @@ int main()
 //   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
 //   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
 
-void serializer::delete_map(deserialized_map* map) {
-    for (auto& m : map->deep) {
-        delete_map(m.second);
-    }
-    delete map;
-}
+
 
 void serializer::enter_scope(std::string& name) {
-    if (state == SERIALIZE_WRITING) {
+    if (state() == SERIALIZE_WRITING) {
         enter_scope_impl(name);
         scopes.push({ name, 0 });
     }
     else {
-        cur = cur->deep[name];
+        cur = cur->deep[name].get();
     }
 
 }
-
 void serializer::exit_scope() {
-    if (state == SERIALIZE_WRITING) {
+    if (state() == SERIALIZE_WRITING) {
         exit_scope_impl();
         scopes.pop();
     }
@@ -108,6 +102,56 @@ void serializer::exit_scope() {
     }
 
 }
+
+void serializer::start_read(std::string file_name) {
+    _state = SERIALIZE_READING;
+    file.open(file_name, std::fstream::in);
+
+    std::stringstream ss;
+    std::string buf;
+    while (std::getline(file, buf)) {
+        ss << buf;
+    }
+    buf = ss.str();
+    buf.erase(std::remove_if(buf.begin(), buf.end(), std::isspace), buf.end());
+
+    file.close();
+
+    ss = std::stringstream(buf);
+
+
+    map = std::make_unique<deserialized_map>();
+    map->parent = nullptr; //should be set in constructor but just make sure incase of any weirdness
+    cur = map.get();
+
+    while (cur != nullptr) {
+
+        cur = deserialize_impl(cur, ss);
+    }
+
+    //reset ready for read
+    cur = map.get();
+}
+
+void serializer::start_write(std::string file_name) {
+    _state = SERIALIZE_WRITING;
+    file.open(file_name, std::fstream::out);
+    scopes.push({ "",0 });
+    file_write_start();
+}
+
+void serializer::stop() {
+    if (state() == SERIALIZE_WRITING) {
+        file_write_end();
+        file.close();
+    }
+    else {
+        map = nullptr;
+    }
+
+}
+
+
 
 void serializer::serialize_deep(serializable* object, std::string& name) {
 
